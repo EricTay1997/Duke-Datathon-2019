@@ -1,0 +1,115 @@
+---
+title: "Datathon Visualizations"
+author: "Ethan Shen"
+date: "11/2/2019"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+data <- read.csv('training_tallskinny.csv')
+interest <- read.csv('interest_topics.csv')
+```
+
+## Visualizations 
+
+```{r}
+var.imp <- read.csv("VI.csv")
+variable_importance <- var.imp %>%
+  mutate(feature = as.character(feature))
+v.list <- stringr::str_split(variable_importance$feature, " ")
+
+int.top <- c()
+for (i in 1:length(v.list)) {
+  v.list <- stringr::str_split(variable_importance$feature, " ")
+  
+  one <- v.list[[i]][length(v.list[[i]])]
+  
+  int.top <- c(int.top, one)
+}
+
+variable_importance$int.top <- int.top
+
+variable_importance$feature <- str_remove_all(variable_importance$feature, " STI")
+variable_importance$feature <- str_remove_all(variable_importance$feature, " LTI")
+
+diff.var.imp <- variable_importance %>%
+  group_by(feature) %>%
+  spread(key = "int.top", value = "feature_importance") %>%
+  mutate(diff = (STI - LTI))
+
+ggplot(diff.var.imp, aes(x= reorder(feature, -LTI), y = LTI)) + 
+  geom_bar(fill = "light blue", stat="identity", position='dodge') + 
+  theme_minimal() + 
+  ggpubr::rotate_x_text(angle = 50)
+
+ggplot(diff.var.imp, aes(x= reorder(feature, -STI), y = STI)) + 
+  geom_bar(fill = "light blue", stat="identity", position='dodge') + 
+  theme_minimal() + 
+  ggpubr::rotate_x_text(angle = 50)
+
+ggplot(diff.var.imp, aes(x= reorder(feature, -diff), y = diff)) + 
+  geom_bar(fill = "light blue", stat="identity", position='dodge') + 
+  labs(title = "Difference between STI and LTI by Feature",
+       x = "Features", 
+       y = "Difference") + 
+  theme_minimal() + 
+  ggpubr::rotate_x_text(angle = 50)
+```
+
+```{r}
+vec <- as.character(interest$topic_name)
+
+split <- strsplit(vec,  "/")
+topicgroup <- c()
+for (i in 1:length(split)) {
+  one <- split[[i]][2]
+  topicgroup <- c(topicgroup, one)
+}
+
+interest$topicgroup <- topicgroup
+
+
+data <- left_join(data, interest, by = "topic_id")
+head(data)
+```
+
+
+```{r}
+topicdist <- data %>%
+  group_by(topicgroup, inAudience) %>%
+  tally()
+
+perc.convert <- topicdist %>%
+  group_by(inAudience) %>%
+  mutate(perc = n / sum(n)) 
+
+diff.by.topic <- perc.convert %>%
+  select(-n) %>%
+  group_by(topicgroup) %>%
+  spread(key = "inAudience", value = "perc") %>%
+  mutate(diff = abs((True - False))) %>%
+  arrange(desc(diff)) %>%
+  head(4)
+
+ggplot(na.omit(perc.convert), aes(x=reorder(topicgroup, -perc), y = perc, fill=inAudience)) +
+  geom_bar(stat="identity", position='dodge') +
+  labs(title = "Conversion Percentage within each Interest Group",
+       x = "Topic", 
+       y = "Percentage", 
+       fill = "Conversion") + 
+  theme_classic() + 
+  ggpubr::rotate_x_text(angle = 55) 
+
+
+ggplot(na.omit(diff.by.topic), aes(x=reorder(topicgroup, -diff), y = diff)) +
+  geom_bar(fill = "light blue", stat="identity", position='dodge') +
+  labs(title = "Difference in Conversion Percentage within each Interest Group",
+       x = "Topic", 
+       y = "Difference") + 
+  theme_classic() + 
+  ggpubr::rotate_x_text(angle = 50)
+
+
+
+```
